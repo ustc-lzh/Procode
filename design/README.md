@@ -11,7 +11,7 @@ is in `probes/target_region/`. BLAST databases and the transcript FASTA are exte
 inputs. A JSON file may be supplied with `--config`, while
 module defaults and command-line overrides work without one.
 
-The target-region defaults retain a 38 nt binding length, Tm 52--70 °C, GC
+The target-region defaults retain a 32 nt binding length, Tm 52--70 °C, GC
 40--65%, maximum dimer/stem lengths 10/8, and single-/dual-arm homology limits
 15/26 nt.  The configured `mid_length=6` contributes an 8 nt window in the
 total-match criterion; it is not an exact 6 nt probe window.  A candidate is
