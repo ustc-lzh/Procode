@@ -45,9 +45,3 @@ Processed cell-level AnnData (`.h5ad`) datasets for Figures 1-4 are available
 from **[Quark Drive](https://pan.quark.cn/s/ef0c951a732b)**.
 
 **Access code:** `Fcv7`
-
-The data package contains eight H5AD files: four probe-number conditions for
-Figure 1, Control and SA-optimized groups for Figure 2, and the final
-annotated mouse-brain and glioblastoma cell sets for Figures 3 and 4.
-Field definitions and cell-selection rules are described in the README
-included with the data.
