@@ -1,0 +1,12 @@
+numpy
+pandas
+scipy
+matplotlib
+h5py
+scikit-learn
+Pillow
+PyMuPDF
+tifffile
+openpyxl
+tqdm
+ipython
