@@ -191,12 +191,10 @@ def load_gene_bed(path: str) -> Dict[str, Tuple[str, int, int]]:
 def load_transcript_strand(path: str, kind: str, use_cache: bool = True) -> Dict[str, str]:
     """transcript_id (without version) -> '+' / '-'.
 
-    - kind='gtf': stream-parse the gencode .gtf/.gtf.gz and keep transcript rows'
-      transcript_id and strand. The original implementation loaded the whole GTF
-      with pandas (the info column is memory-heavy); this processes one line at a time.
-    - kind='csv': mm10.whole.gtf.csv (518 MB), read in chunks and retain only needed columns.
+    - kind='gtf': stream GENCODE .gtf/.gtf.gz transcript IDs and strand labels.
+    - kind='csv': read the transcript table in chunks and retain the needed columns.
 
-    Parsing takes 20-30 s, so results are cached in ``<gtf>.strand.pkl`` for fast reuse.
+    Results are cached in ``<gtf>.strand.pkl`` for reuse.
     """
     cache_file = path + ".strand.pkl"
     if use_cache and os.path.isfile(cache_file):

@@ -14,14 +14,8 @@ The stage performs the following operations:
   3.8 Run in-pool blastn-short and remove targets that hit multiple genes
   3.9 Deduplicate overlaps again -> final target-pool CSV
 
-The implementation uses bounded-memory operations without changing the
-screening criteria:
-  * Use genome_mapping for random genome access instead of loading the full FASTA at once;
-  * The original find_location_for_row reread a 1.2 MB bed for every row; this reads it once;
-  * Replace bedtools with a pure-Python streaming intersection (the rbp bed has 6.45 million rows,
-    so streaming memory is constant); it also runs without bedtools;
-  * Stream-parse in-pool blastn through a pipe without writing hundreds of MB of intermediate output;
-  * rename columns before removing non-string targets.
+Genome intervals are read on demand. RBP intersections and BLAST results
+are streamed to limit memory use.
 """
 
 from __future__ import annotations
@@ -222,7 +216,7 @@ def merge_gene_csv(in_dir: str, out_path: str) -> pd.DataFrame:
 def annotate_locations(df: pd.DataFrame, genome: GenomeIndex,
                        gene_bed: Dict[str, Tuple[str, int, int]],
                        desc: str = "locate") -> pd.DataFrame:
-    """Equivalent to the original get_seq_loc + refresh_anno_df, with on-demand genome reads."""
+    """Locate targets in genomic intervals and annotate their coordinates."""
     chrs: List[Any] = []
     starts: List[Any] = []
     ends: List[Any] = []
@@ -267,7 +261,7 @@ def annotate_locations(df: pd.DataFrame, genome: GenomeIndex,
 
 
 def refresh_anno_df(df_anno: pd.DataFrame) -> pd.DataFrame:
-    """Discard unmatched targets (RNA splice sites spanning exons), cast coordinates to int, matching the original implementation."""
+    """Discard targets without a genomic match and convert coordinates to integers."""
     df_anno = df_anno.fillna(0)
     df_anno = df_anno[~df_anno["chr"].isin([0])]
     df_anno = df_anno.copy()

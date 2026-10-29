@@ -216,11 +216,7 @@ def find_overlap(seq1: str, seq2: str, min_overlap: int = 25) -> bool:
 
 def drop_overlapping_indices(index_seq_pairs: Sequence[Tuple[Any, str]],
                              min_overlap: int) -> set:
-    """Drop later sequences that overlap an earlier sequence.
-
-    The original implementation used nested O(n^2) ``iterrows`` loops; this uses plain lists
-    with identical criteria and traversal order, avoiding the cost of constructing a Series per iterrows call.
-    """
+    """Drop later sequences that overlap an earlier sequence."""
     drop: set = set()
     n = len(index_seq_pairs)
     for i in range(n):
