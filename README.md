@@ -1,6 +1,6 @@
 # Procode
 
-### The scripts for article "Expression-guided probe and codebook design for RCA-based spatial transcriptomics".
+### The scripts for article "Procode enables expression-guided probe and codebook design for RCA-based spatial transcriptomics".
 
 ## Probe design workflow
 
