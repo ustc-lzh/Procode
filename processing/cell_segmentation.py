@@ -6,7 +6,7 @@ import numpy as np
 
 
 def scale_to_uint8(image: np.ndarray) -> np.ndarray:
-    """Scale an image to uint8 as in the Mesmer input preparation cell."""
+    """Scale an image to uint8 for Mesmer input."""
 
     values = np.asarray(image)
     if values.ndim == 0:
@@ -27,8 +27,7 @@ def expand_labels_no_merge(
     """Expand labels by 4-neighbour steps without merging different labels.
 
     An unlabeled pixel is filled only when its current 4-neighbourhood contains
-    exactly one positive label. The area limit is checked before each assignment,
-    matching the small serial equivalent of the audited helper.
+    exactly one positive label. The area limit is checked before each assignment.
     """
 
     values = np.asarray(labels)
