@@ -1,4 +1,4 @@
-"""Final spatial spot-cache stage for Fig. 3."""
+"""Summarize transcript-coordinate caches and plot spatial gene expression."""
 
 from __future__ import annotations
 
@@ -32,7 +32,6 @@ def run_spatial(ctx) -> None:
     ctx.report["checks"].update({
         "spatial_gene_order": list(SPATIAL_GENES),
         "spatial_bounds": bounds,
-        "legacy_vip_excluded": "Vip" not in SPATIAL_GENES,
     })
     ctx.report["outputs"]["spatial_gene_counts"] = str(ctx.output / "spatial_gene_counts.csv")
     panel = ctx.output / "spatial_gene_panel.png"

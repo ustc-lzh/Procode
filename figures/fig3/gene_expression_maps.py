@@ -1,4 +1,4 @@
-"""Load and render the final 14-gene spot cache as standalone rasters."""
+"""Read transcript-coordinate caches and plot spatial gene expression."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def load_spot_cache(ctx, genes=SPATIAL_GENES):
 
 
 def render_spatial_panel(path, spot_data, bounds, genes=SPATIAL_GENES):
-    """Render one scientific 4 × 4 panel; no PDF/page composition."""
+    """Plot transcript locations for each gene on a shared coordinate scale."""
 
     try:
         import matplotlib

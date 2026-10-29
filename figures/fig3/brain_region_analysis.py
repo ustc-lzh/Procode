@@ -33,7 +33,7 @@ except ImportError:  # direct import from this directory
 
 
 def matrix_from_frame(frame, rows, columns):
-    """Align a precomputed count table to the canonical 16 × 19 order."""
+    """Align brain-region counts to the specified row and column order."""
 
     _, _, _, _, _ = _deps()
     frame = frame.copy()

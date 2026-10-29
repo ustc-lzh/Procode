@@ -1,14 +1,8 @@
-"""Shared read-only inputs and lightweight analysis context for Fig. 3.
-
-The workbook is a compact source-data manifest.  H5AD, CSV and NPY payloads
-remain in the external ``--data-root`` tree and are never copied into this
-code directory.
-"""
+"""Read Figure 3 tables, expression matrices and cell annotations."""
 
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -20,8 +14,7 @@ except ImportError:  # direct ``python module.py`` execution
 
 STAGES = ("all", "celltypes", "markers", "correspondence", "correlation", "spatial")
 
-# The final spatial panel.  Vip is an external legacy cache only and is not
-# part of the current panel.
+# Genes shown in the spatial-expression panel.
 SPATIAL_GENES = (
     "Cux2", "Rorb", "Fezf2", "Cplx3", "Wfs1", "Prox1", "Drd1", "Prkcd",
     "Slc17a6", "Cbln1", "Gad1", "Calb2", "Mog", "Col1a1",
@@ -36,7 +29,7 @@ MARKER_GENES = (
     "P2ry12", "Tmem119", "Cldn5", "Gucy1a1", "Spag16", "Col1a1",
 )
 
-# Canonical final 32 displayed groups.  Unresolved is kept separately and
+# The 32 displayed groups. Unresolved is kept separately and
 # excluded from display statistics.
 DISPLAY_GROUPS = (
     ("L2/3 IT-like", "L2/3 IT-like", "#FF4A3D"),
@@ -131,9 +124,6 @@ class DataLocator:
                 candidates.append(path)
             else:
                 candidates.append(self.root / path)
-                # Support extracting the supplied archive one directory above
-                # its Result3_data_20261020 payload, without any old workdir.
-                candidates.append(self.root / "Result3_data_20261020" / path)
         seen: set[str] = set()
         for path in candidates:
             key = str(path)
@@ -148,7 +138,7 @@ class DataLocator:
 
 
 def _deps() -> tuple[Any, Any, Any, Any, Any]:
-    """Load scientific dependencies lazily so ``--help`` stays lightweight."""
+    """Load the numerical and H5AD dependencies."""
 
     try:
         import h5py  # type: ignore
@@ -156,10 +146,10 @@ def _deps() -> tuple[Any, Any, Any, Any, Any]:
         import pandas as pd  # type: ignore
         from scipy import sparse, stats  # type: ignore
         return np, pd, h5py, sparse, stats
-    except ImportError as exc:  # pragma: no cover - environment-specific
+    except ImportError as exc:
         raise RuntimeError(
             "Fig. 3 analysis needs numpy, pandas, h5py and scipy. "
-            "Use the project runtime/PYTHONPATH described in README.md."
+            "Install the dependencies listed in requirements.txt."
         ) from exc
 
 
@@ -303,7 +293,7 @@ class AnalysisContext:
         self.annotation: Any | None = None
         self.config = self._read_config()
         self.report: dict[str, Any] = {
-            "figure": "fig3", "analysis": "compact_fig3_analysis",
+            "figure": "fig3", "analysis": "fig3_analysis",
             "stage": {}, "inputs": {}, "checks": {}, "formulas": {},
             "unresolved": [], "outputs": {},
         }

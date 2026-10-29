@@ -1,9 +1,4 @@
-"""Validation of the recorded r40 cortical mapping.
-
-The final display annotation table is authoritative.  This module only
-checks that an optional exploratory assignment table agrees with the
-workbook's recorded mapping; it never reassigns cells or reruns clustering.
-"""
+"""Check cortical cluster assignments against the annotated cell types."""
 
 from __future__ import annotations
 

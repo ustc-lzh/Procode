@@ -1,22 +1,17 @@
-"""Cell-type counts, cortical provenance and standalone cell plots."""
+"""Summarize cell types and plot their spatial and UMAP distributions."""
 
 from __future__ import annotations
 
 try:
     from .cortical_cell_types import validate_cortical_mapping
-    from .data_io import DEFAULT_CORTICAL_MAPPING, _as_bool, _deps, _save_table
+    from .data_io import _deps, _save_table
 except ImportError:  # direct script execution
     from cortical_cell_types import validate_cortical_mapping
-    from data_io import DEFAULT_CORTICAL_MAPPING, _as_bool, _deps, _save_table
-
-
-# Export the recorded mapping under the historical module name as well.  The
-# final annotation labels remain authoritative; this is provenance only.
-CORTICAL_MAPPING = DEFAULT_CORTICAL_MAPPING
+    from data_io import _deps, _save_table
 
 
 def run_celltypes(ctx) -> None:
-    """Write 32 shown groups plus Unresolved and optional scientific rasters."""
+    """Export cell-type counts, cortical assignments and cell maps."""
 
     np, pd, _, _, _ = _deps()
     data = ctx.load_main()

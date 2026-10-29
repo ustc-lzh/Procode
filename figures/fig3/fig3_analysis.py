@@ -1,8 +1,4 @@
-"""Compact Fig. 3 analysis entry point.
-
-Scientific work is split across the functional modules in this directory;
-this file only parses the CLI, checks inputs and runs requested stages.
-"""
+"""Run mouse-brain cell-type, expression and brain-region analyses."""
 
 from __future__ import annotations
 
@@ -83,11 +79,11 @@ def required_inputs(stage: str) -> list[tuple[str, Sequence[str]]]:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workbook", type=Path, default=DEFAULT_WORKBOOK,
-                        help="Read-only fig3_data.xlsx or compatible workbook JSON.")
+                        help="Figure 3 workbook (XLSX or JSON).")
     parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT,
-                        help="External extracted Result3 data root containing data/ and source_data/.")
+                        help="Data directory containing data/ and source_data/.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT,
-                        help="Directory for compact tables, standalone plots and fig3_report.json.")
+                        help="Output directory for tables, plots and fig3_report.json.")
     parser.add_argument("--stage", choices=STAGES, default="all",
                         help="Stage: all, celltypes, markers, correspondence, correlation or spatial.")
     parser.add_argument("--check-inputs", action="store_true",
@@ -105,8 +101,7 @@ def check_inputs(args: argparse.Namespace, workbook: dict) -> int:
         if path is None:
             missing.append(logical)
 
-    # Workbook correspondence counts are a valid compact fallback when the
-    # two large correspondence H5ADs are not mounted.
+    # Correspondence can use paired H5AD files or a precomputed count table.
     if args.stage in {"all", "correspondence"}:
         ref = locator.find("fig3_reference", ("data/fig3_reference.h5ad", "fig3_reference.h5ad"), required=False)
         cast = locator.find("adata_cast", ("data/adata_cast.h5ad", "adata_cast.h5ad"), required=False)
@@ -121,7 +116,7 @@ def check_inputs(args: argparse.Namespace, workbook: dict) -> int:
         else:
             missing.append("correspondence (H5AD pair or precomputed count table)")
 
-    # The 304-point workbook sheet is a valid small-table fallback.
+    # Correlation points can be read directly from the workbook.
     if args.stage in {"all", "correlation"} and _sheet_rows(workbook, "correlation_points"):
         missing = [item for item in missing if item != "correlation_points"]
     print(json.dumps({"stage": args.stage, "data_root": str(args.data_root),

@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def render_qc(ctx, data) -> None:
-    """Write compact QC summary and optional histograms from H5AD metadata."""
+    """Summarize cell-quality metrics and plot their distributions."""
 
     np, pd, _, _, _ = _deps()
     qc_rows = []
