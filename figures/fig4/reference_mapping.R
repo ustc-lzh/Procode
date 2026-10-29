@@ -110,7 +110,7 @@ main <- function() {
   query <- CreateSeuratObject(
     counts = query_counts,
     meta.data = query_meta,
-    project = "BASSFISH_20250821",
+    project = "Procode_GBM",
     min.cells = 0,
     min.features = 0
   )

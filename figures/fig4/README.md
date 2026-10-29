@@ -1,10 +1,13 @@
 # Fig. 4 and Supplementary Fig. 6
 
-Summary tables are provided in [fig4_data.xlsx](fig4_data.xlsx).
+Summary tables are provided in [fig4_data.xlsx](fig4_data.xlsx). The workbook
+also lists the external cell metadata, reference UMAP, transcript-position and
+ROI files needed for the spatial and Supplementary Fig. 6 panels. Pass their
+containing directory or ZIP archive with `--data-root`.
 
 | Script | Purpose |
 | --- | --- |
-| [reference_projection.py](reference_projection.py) | Run Fig. 4 analyses using existing annotations and mapping results. |
+| [reference_projection.py](reference_projection.py) | Run Fig. 4 analyses from existing annotations and mapping results. |
 | [reference_mapping.R](reference_mapping.R) | Perform Seurat reference mapping and label transfer between reference and query objects. |
 | [cell_type_maps.py](cell_type_maps.py) | Plot cell-type annotations in tissue space and UMAP. |
 | [spatial_expression.py](spatial_expression.py) | Plot the tissue locations of selected marker-gene transcripts. |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone spatial cell-type and projected-query UMAP panels."""
+"""Spatial cell-type and projected-query UMAP panels."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 
@@ -30,19 +31,30 @@ def configure_style() -> None:
     )
 
 
-def placeholder(ax: plt.Axes, title: str, detail: str) -> None:
-    ax.set_title(title)
-    ax.text(0.5, 0.5, detail, transform=ax.transAxes, ha="center", va="center", color="#666666")
-    ax.set_xticks([])
-    ax.set_yticks([])
-    for spine in ax.spines.values():
-        spine.set_visible(False)
+def _require_columns(table: pd.DataFrame, required: set[str], panel: str) -> None:
+    missing = sorted(required.difference(table.columns))
+    if missing:
+        raise ValueError(f"{panel} requires columns: {', '.join(missing)}.")
+
+
+def _finite_rows(table: pd.DataFrame, columns: tuple[str, str], panel: str) -> pd.DataFrame:
+    numeric = table.assign(
+        **{column: pd.to_numeric(table[column], errors="coerce") for column in columns}
+    )
+    numeric = numeric.dropna(subset=list(columns))
+    numeric = numeric.loc[np.isfinite(numeric[list(columns)]).all(axis=1)]
+    if numeric.empty:
+        raise ValueError(f"{panel} has no finite coordinate pairs.")
+    return numeric
 
 
 def plot_spatial_celltypes(ax: plt.Axes, retained: pd.DataFrame, config: dict) -> None:
-    if not {"display_x_um", "display_y_um"}.issubset(retained.columns):
-        placeholder(ax, "Spatial cell types", "display coordinates unavailable")
-        return
+    _require_columns(
+        retained,
+        {"display_x_um", "display_y_um", "final_celltype_code"},
+        "Spatial cell-type panel",
+    )
+    retained = _finite_rows(retained, ("display_x_um", "display_y_um"), "Spatial cell-type panel")
     for label in config["celltype_order"]:
         selected = retained["final_celltype_code"].astype(str).eq(label)
         sub = retained.loc[selected].dropna(subset=["display_x_um", "display_y_um"])
@@ -65,11 +77,19 @@ def plot_spatial_celltypes(ax: plt.Axes, retained: pd.DataFrame, config: dict) -
 
 
 def plot_query_umap(ax: plt.Axes, metadata: pd.DataFrame, config: dict) -> None:
-    required = {"UMAP_1", "UMAP_2"}
-    if not required.issubset(metadata.columns):
-        placeholder(ax, "Projected query UMAP", "UMAP coordinates unavailable")
-        return
-    query = metadata.loc[metadata["in_projected_umap"]].dropna(subset=["UMAP_1", "UMAP_2"])
+    _require_columns(
+        metadata,
+        {
+            "UMAP_1",
+            "UMAP_2",
+            "in_projected_umap",
+            "retained_for_final_figure",
+            "final_celltype_code",
+        },
+        "Projected query UMAP panel",
+    )
+    query = metadata.loc[metadata["in_projected_umap"]].copy()
+    query = _finite_rows(query, ("UMAP_1", "UMAP_2"), "Projected query UMAP panel")
     for label in config["celltype_order"]:
         sub = query.loc[query["final_celltype_code"].astype(str).eq(label)]
         if len(sub):

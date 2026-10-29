@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Count-matrix preparation and the release's 34-factor normalization.
+"""Count-matrix preparation and the 34-factor marker normalization.
 
 This module deliberately keeps matrix work separate from marker plotting.  It
 validates the retained-cell join before converting raw counts to the exact
@@ -71,7 +71,7 @@ def log_normalize_34(counts: pd.DataFrame, transcripts_per_cell: pd.Series) -> p
 
 
 def qc_values(metadata: pd.DataFrame) -> dict[str, pd.Series]:
-    """Return QC vectors used by the independent Supplementary Fig. 6 plots."""
+    """Return QC vectors used by the Supplementary Fig. 6 plots."""
 
     genes = pd.to_numeric(metadata.get("genes_per_cell", pd.Series(dtype=float)), errors="coerce")
     transcripts = pd.to_numeric(

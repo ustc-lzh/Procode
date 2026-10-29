@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Run the current Fig. 4 analysis and write independent scientific panels.
+"""Run the Fig. 4 analysis and write scientific panels and audit tables.
 
-The entry point keeps the release's explicit retained-cell population and
-final D1-D5 domain mapping.  It intentionally stops at standalone PNG/PDF/SVG
-panels and reproducible tables; no manuscript-page compositor is included.
+The entry point uses the retained-cell population and final D1-D5 domain
+mapping supplied by the workbook and external data files.
 """
 
 from __future__ import annotations
@@ -40,7 +39,7 @@ def parse_args() -> argparse.Namespace:
         "--data-root",
         type=Path,
         default=None,
-        help="Result4 release directory or ZIP containing the large data files.",
+        help="Directory or ZIP containing the external data files.",
     )
     parser.add_argument(
         "--output-dir",
@@ -52,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         "--stage",
         choices=("logical",),
         default="logical",
-        help="Analysis stage. logical writes tables and independent panels.",
+        help="Analysis stage. logical writes tables and panels.",
     )
     parser.add_argument("--dpi", type=int, default=400)
     return parser.parse_args()
@@ -78,7 +77,25 @@ def render_fig4_outputs(
     output_dir: Path,
     dpi: int,
 ) -> list[str]:
-    """Write standalone Fig. 4 spatial, UMAP and ROI panels."""
+    """Write Fig. 4 spatial, UMAP and ROI panels."""
+
+    required_metadata = {
+        "display_x_um",
+        "display_y_um",
+        "final_celltype_code",
+        "final_domain",
+        "UMAP_1",
+        "UMAP_2",
+        "in_projected_umap",
+        "retained_for_final_figure",
+    }
+    missing_metadata = sorted(required_metadata.difference(metadata.columns))
+    if missing_metadata:
+        raise ValueError("Fig. 4 panels require metadata columns: " + ", ".join(missing_metadata) + ".")
+    if spots is None:
+        raise FileNotFoundError("Transcript-position data are required for Fig. 4.")
+    if roi is None or roi.empty:
+        raise FileNotFoundError("ROI-center data are required for Fig. 4.")
 
     retained = metadata.loc[metadata["retained_for_final_figure"]].copy()
     outputs: list[str] = []
@@ -90,12 +107,20 @@ def render_fig4_outputs(
     )
     for stem, plotter, figsize, values in plot_specs:
         figure, ax = plt.subplots(figsize=figsize)
-        plotter(ax, *values)
-        outputs.extend(_save_figure(figure, output_dir, stem, dpi))
+        try:
+            plotter(ax, *values)
+            outputs.extend(_save_figure(figure, output_dir, stem, dpi))
+        except Exception:
+            plt.close(figure)
+            raise
     for domain in data_io.DOMAIN_ORDER:
         figure, ax = plt.subplots(figsize=(3.6, 3.6))
-        spatial_domains.plot_single_roi(ax, retained, roi, domain, config)
-        outputs.extend(_save_figure(figure, output_dir, f"Fig4_roi_{domain}", dpi))
+        try:
+            spatial_domains.plot_single_roi(ax, retained, roi, domain, config)
+            outputs.extend(_save_figure(figure, output_dir, f"Fig4_roi_{domain}", dpi))
+        except Exception:
+            plt.close(figure)
+            raise
     return outputs
 
 
@@ -171,7 +196,7 @@ def run(args: argparse.Namespace) -> dict:
                 "marker_dotplot_analysis": marker_file,
                 "domain_composition_analysis": composition_file,
             },
-            "judgment": "Independent coordinate scatter panels and source-backed numerical tables are reproducible from the workbook plus listed external files.",
+            "judgment": "Coordinate panels and source-backed numerical tables are reproducible from the workbook plus listed external files.",
         }
         (output_dir / "fig4_report.json").write_text(
             json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"

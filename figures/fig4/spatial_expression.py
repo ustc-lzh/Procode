@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
-from cell_type_maps import placeholder
 from data_io import find_column
 
 
@@ -13,20 +13,32 @@ def plot_spots(ax, spots: pd.DataFrame | None, config: dict) -> None:
     """Render all valid tissue spots for the seven selected spatial markers."""
 
     if spots is None:
-        placeholder(ax, "Marker transcript positions", "transcript positions supplied separately")
-        return
+        raise FileNotFoundError("Transcript-position data are required for the marker-position panel.")
+    if spots.empty:
+        raise ValueError("Transcript-position data are empty.")
     gene_column = find_column(spots, "gene", "target_gene")
     x_column = find_column(spots, "x_adjust", "x", "x_position")
     y_column = find_column(spots, "y_adjust", "y", "y_position")
     if not gene_column or not x_column or not y_column:
-        placeholder(ax, "Marker transcript positions", "gene/x/y columns unavailable")
-        return
+        missing = [
+            name
+            for name, column in (("gene", gene_column), ("x", x_column), ("y", y_column))
+            if column is None
+        ]
+        raise ValueError(
+            "Marker transcript positions require columns: " + ", ".join(missing) + "."
+        )
     marker_to_label = {gene: label for label, gene in config["marker_map"].items()}
     selected = spots[gene_column].astype(str).isin(marker_to_label)
     plot = spots.loc[selected, [gene_column, x_column, y_column]].copy()
+    if plot.empty:
+        raise ValueError("Transcript-position data contain none of the configured spatial marker genes.")
     plot["display_x_um"] = pd.to_numeric(plot[y_column], errors="coerce") * config["pixel_size_um"]
     plot["display_y_um"] = pd.to_numeric(plot[x_column], errors="coerce") * config["pixel_size_um"]
     plot = plot.dropna(subset=["display_x_um", "display_y_um"])
+    plot = plot.loc[np.isfinite(plot[["display_x_um", "display_y_um"]]).all(axis=1)]
+    if plot.empty:
+        raise ValueError("Configured spatial marker positions have no finite coordinates.")
     for gene, label in marker_to_label.items():
         sub = plot.loc[plot[gene_column].astype(str).eq(gene)]
         if len(sub):

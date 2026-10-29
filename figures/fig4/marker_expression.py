@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retained-cell marker statistics and independent dot-plot rendering."""
+"""Retained-cell marker statistics and dot-plot rendering."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from data_io import DOMAIN_ORDER, find_column
+from data_io import find_column
 from gene_expression import log_normalize_34, retained_counts
 
 
@@ -26,9 +26,31 @@ def recompute_markers(
     if marker_table is None:
         raise ValueError("Counts are available but marker_dotplot source table is missing.")
     marker_table = marker_table.copy()
+    if marker_table.empty and counts is None:
+        checks["marker_stats_source"] = "unavailable"
+        return None, checks
+    required_source = {"celltype", "gene"}
+    missing_source = sorted(required_source.difference(marker_table.columns))
+    if missing_source:
+        raise ValueError(
+            "Marker dot-plot table requires columns: " + ", ".join(missing_source) + "."
+        )
     if counts is None:
         checks["marker_stats_source"] = "precomputed:marker_dotplot"
         return marker_table, checks
+    required_comparison = {
+        "n_cells",
+        "fraction_positive",
+        "mean_log_normalized",
+        "scaled_mean_expression",
+    }
+    missing_comparison = sorted(required_comparison.difference(marker_table.columns))
+    if missing_comparison:
+        raise ValueError(
+            "Marker dot-plot table requires comparison columns: "
+            + ", ".join(missing_comparison)
+            + "."
+        )
 
     genes = list(config["dotplot_genes"])
     selected_counts, retained = retained_counts(counts, metadata, genes)
@@ -99,24 +121,31 @@ def recompute_markers(
 
 
 def plot_dotplot(ax: plt.Axes, marker_table: pd.DataFrame | None, config: dict) -> None:
-    """Plot the independent marker expression panel."""
+    """Plot the marker expression panel."""
 
-    if marker_table is None:
+    if marker_table is None or marker_table.empty:
         ax.set_title("Marker expression")
         ax.text(0.5, 0.5, "marker table unavailable", transform=ax.transAxes, ha="center", va="center")
         ax.set_xticks([])
         ax.set_yticks([])
         return
     table = marker_table.copy()
-    for column in ("celltype", "gene"):
-        if column not in table:
-            ax.set_title("Marker expression")
-            ax.text(0.5, 0.5, f"{column} column unavailable", transform=ax.transAxes, ha="center", va="center")
-            ax.set_xticks([])
-            ax.set_yticks([])
-            return
+    missing = sorted({"celltype", "gene", "fraction_positive", "scaled_mean_expression"}.difference(table.columns))
+    if missing:
+        raise ValueError("Marker expression panel requires columns: " + ", ".join(missing) + ".")
     table["celltype"] = table["celltype"].astype(str)
     table["gene"] = table["gene"].astype(str)
+    for column in ("fraction_positive", "scaled_mean_expression"):
+        raw = table[column]
+        numeric = pd.to_numeric(raw, errors="coerce")
+        invalid = raw.isna() | numeric.isna() | ~np.isfinite(numeric)
+        if invalid.any():
+            raise ValueError(f"Marker expression column {column} must contain finite numbers.")
+        table[column] = numeric
+    if ((table["fraction_positive"] < 0) | (table["fraction_positive"] > 1)).any():
+        raise ValueError("Marker expression fraction_positive values must be between 0 and 1.")
+    if ((table["scaled_mean_expression"] < 0) | (table["scaled_mean_expression"] > 1)).any():
+        raise ValueError("Marker expression scaled_mean_expression values must be between 0 and 1.")
     present_genes = set(table["gene"])
     genes = [gene for gene in config["dotplot_genes"] if gene in present_genes]
     present_labels = set(table["celltype"])

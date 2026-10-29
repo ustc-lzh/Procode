@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Final-domain composition statistics and independent composition panel."""
+"""Final-domain composition statistics and plotting."""
 
 from __future__ import annotations
 
@@ -17,11 +17,17 @@ def recompute_composition(
     """Compute P(cell type | final domain) and audit the packaged table."""
 
     checks: dict = {}
-    if composition is None:
-        checks["composition_source"] = "unavailable"
+    required_metadata = {"retained_for_final_figure", "final_domain", "final_celltype_code"}
+    missing_metadata = sorted(required_metadata.difference(metadata.columns))
+    if missing_metadata:
+        raise ValueError(
+            "Domain composition requires metadata columns: " + ", ".join(missing_metadata) + "."
+        )
     retained = metadata.loc[metadata["retained_for_final_figure"]].copy()
-    if "final_domain" not in retained or retained["final_domain"].isna().all():
-        return composition, checks
+    if retained.empty:
+        raise ValueError("Domain composition requires retained cells.")
+    if retained["final_domain"].isna().any():
+        raise ValueError("Retained metadata contains missing final_domain values.")
     rows: list[dict] = []
     labels = retained["final_celltype_code"].astype(str)
     domains = retained["final_domain"].astype(str)
@@ -40,7 +46,7 @@ def recompute_composition(
                 }
             )
     recomputed = pd.DataFrame(rows)
-    if composition is None:
+    if composition is None or composition.empty:
         checks["composition_source"] = "recomputed_from_canonical_metadata"
         return recomputed, checks
 
@@ -60,8 +66,19 @@ def recompute_composition(
         label_column = find_column(source, "broad_celltype", "final_celltype_code")
         if label_column:
             source = source.rename(columns={label_column: "celltype"})
-    if "final_domain" not in source or "celltype" not in source:
-        raise ValueError("Precomputed domain composition needs final_domain and celltype columns.")
+    required_source = {
+        "final_domain",
+        "celltype",
+        "n_cells",
+        "fraction_within_domain",
+    }
+    missing_source = sorted(required_source.difference(source.columns))
+    if missing_source:
+        raise ValueError(
+            "Precomputed domain composition requires columns: "
+            + ", ".join(missing_source)
+            + "."
+        )
     source["final_domain"] = source["final_domain"].astype(str)
     source["celltype"] = source["celltype"].astype(str)
     merged = recomputed.merge(source, on=["final_domain", "celltype"], suffixes=("_recomputed", "_source"))
@@ -88,30 +105,40 @@ def recompute_composition(
 
 
 def plot_composition(ax, composition: pd.DataFrame | None, config: dict) -> None:
-    """Draw a standalone stacked final-domain composition panel."""
+    """Draw the stacked final-domain composition panel."""
 
-    if composition is None:
+    if composition is None or composition.empty:
         ax.set_title("Final-domain composition")
         ax.text(0.5, 0.5, "composition table unavailable", transform=ax.transAxes, ha="center", va="center")
         ax.set_xticks([])
         ax.set_yticks([])
         return
     table = composition.copy()
-    if "final_domain" not in table or "celltype" not in table:
-        ax.set_title("Final-domain composition")
-        ax.text(0.5, 0.5, "final-domain columns unavailable", transform=ax.transAxes, ha="center", va="center")
-        ax.set_xticks([])
-        ax.set_yticks([])
-        return
+    required = {"final_domain", "celltype", "fraction_within_domain"}
+    missing = sorted(required.difference(table.columns))
+    if missing:
+        raise ValueError("Final-domain composition requires columns: " + ", ".join(missing) + ".")
     table["final_domain"] = table["final_domain"].astype(str)
     table["celltype"] = table["celltype"].astype(str)
+    raw_fraction = table["fraction_within_domain"]
+    table["fraction_within_domain"] = pd.to_numeric(raw_fraction, errors="coerce")
+    invalid_fraction = raw_fraction.notna() & (
+        table["fraction_within_domain"].isna()
+        | ~np.isfinite(table["fraction_within_domain"])
+    )
+    if invalid_fraction.any():
+        raise ValueError("Final-domain composition fractions must be finite numbers.")
+    finite_fraction = table["fraction_within_domain"].dropna()
+    if ((finite_fraction < 0) | (finite_fraction > 1)).any():
+        raise ValueError("Final-domain composition fractions must be between 0 and 1.")
     left = np.zeros(len(DOMAIN_ORDER), dtype=float)
     y = np.arange(len(DOMAIN_ORDER))
     for label in config["celltype_order"]:
         values = []
         for domain in DOMAIN_ORDER:
             row = table.loc[table["final_domain"].eq(domain) & table["celltype"].eq(label)]
-            values.append(float(row.iloc[0]["fraction_within_domain"]) if not row.empty else 0.0)
+            value = row.iloc[0]["fraction_within_domain"] if not row.empty else 0.0
+            values.append(0.0 if pd.isna(value) else float(value))
         values = np.asarray(values)
         ax.barh(
             y,

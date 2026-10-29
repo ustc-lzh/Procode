@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Shared workbook, release-data and configuration access for Fig. 4.
+"""Shared workbook, external-data and configuration access for Fig. 4.
 
-The workbook contains the compact, publication-facing tables.  Large tables
-remain in the Result4 release directory or ZIP and are addressed by their
-release-relative paths.  This module owns that boundary so plotting modules do
-not silently fall back to legacy CSV/JSON layouts.
+The workbook contains summary tables. Larger inputs can be supplied through a
+data directory or ZIP archive using the relative paths listed in the workbook.
 """
 
 from __future__ import annotations
@@ -97,7 +95,7 @@ DEFAULT_DOTPLOT_GENES = [
 
 
 class DataLocator:
-    """Read release-relative files from a directory or the supplied ZIP."""
+    """Read relative files from a directory or the supplied ZIP archive."""
 
     def __init__(self, root: Path | None):
         self.root = Path(root).expanduser().resolve() if root else None
@@ -278,18 +276,18 @@ def load_metadata(
     )
     if metadata is None:
         raise FileNotFoundError(
-            "Canonical cell metadata is required as workbook sheet cell_metadata "
+            "Cell metadata is required as workbook sheet cell_metadata "
             "or data-root cells/cell_metadata.csv."
         )
     metadata = _rename_known_columns(metadata)
     if "cell_id" not in metadata:
-        raise ValueError("Canonical metadata must contain cell_id.")
+        raise ValueError("Cell metadata must contain cell_id.")
     metadata["cell_id"] = normalize_ids(metadata["cell_id"])
     if metadata["cell_id"].duplicated().any():
-        raise ValueError("Canonical metadata contains duplicate cell_id values.")
+        raise ValueError("Cell metadata contains duplicate cell_id values.")
 
     if "final_celltype_code" not in metadata:
-        raise ValueError("Canonical metadata must contain final_celltype_code.")
+        raise ValueError("Cell metadata must contain final_celltype_code.")
     metadata["final_celltype_code"] = metadata["final_celltype_code"].replace(
         {"nan": np.nan, "None": np.nan, "": np.nan}
     )
@@ -299,14 +297,14 @@ def load_metadata(
         if merged_column and isinstance(domain_map, dict):
             metadata["final_domain"] = metadata[merged_column].map(domain_map)
         else:
-            raise ValueError("Canonical metadata needs final_domain and final_domain_map.")
+            raise ValueError("Cell metadata needs final_domain and final_domain_map.")
     if "retained_for_final_figure" not in metadata:
-        raise ValueError("Canonical metadata must contain retained_for_final_figure.")
+        raise ValueError("Cell metadata must contain retained_for_final_figure.")
     metadata["retained_for_final_figure"] = as_bool(metadata["retained_for_final_figure"])
     if "in_projected_umap" not in metadata:
         required = {"UMAP_1", "UMAP_2"}
         if not required.issubset(metadata.columns):
-            raise ValueError("Canonical metadata needs in_projected_umap or UMAP_1/UMAP_2.")
+            raise ValueError("Cell metadata needs in_projected_umap or UMAP_1/UMAP_2.")
         metadata["in_projected_umap"] = metadata[["UMAP_1", "UMAP_2"]].notna().all(axis=1)
     else:
         metadata["in_projected_umap"] = as_bool(metadata["in_projected_umap"])
@@ -335,6 +333,10 @@ def load_metadata(
                 checks[f"{key}_matches_settings"] = int(populations[key]) == int(observed)
 
     retained = metadata.loc[metadata["retained_for_final_figure"]].copy()
+    if retained.empty:
+        raise ValueError("Cell metadata contains no retained_for_final_figure cells.")
+    if retained["final_domain"].isna().any():
+        raise ValueError("Retained cell metadata contains missing final_domain values.")
     valid_domains = set(retained["final_domain"].dropna().astype(str))
     checks["retained_domains_are_D1_to_D5"] = valid_domains.issubset(set(DOMAIN_ORDER))
     if not checks["retained_domains_are_D1_to_D5"]:

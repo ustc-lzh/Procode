@@ -3,16 +3,62 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from data_io import DOMAIN_ORDER
-from cell_type_maps import placeholder
+
+
+def _require_columns(table: pd.DataFrame, required: set[str], panel: str) -> None:
+    missing = sorted(required.difference(table.columns))
+    if missing:
+        raise ValueError(f"{panel} requires columns: {', '.join(missing)}.")
+
+
+def _finite_float(value: object, name: str) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a finite number.") from None
+    if not np.isfinite(result):
+        raise ValueError(f"{name} must be a finite number.")
+    return result
+
+
+def _positive_float(value: object, name: str) -> float:
+    result = _finite_float(value, name)
+    if result <= 0:
+        raise ValueError(f"{name} must be greater than zero.")
+    return result
+
+
+def _finite_coordinates(table: pd.DataFrame, panel: str) -> pd.DataFrame:
+    numeric = table.assign(
+        **{
+            column: pd.to_numeric(table[column], errors="coerce")
+            for column in ("display_x_um", "display_y_um")
+        }
+    )
+    numeric = numeric.dropna(subset=["display_x_um", "display_y_um"])
+    numeric = numeric.loc[np.isfinite(numeric[["display_x_um", "display_y_um"]]).all(axis=1)]
+    if numeric.empty:
+        raise ValueError(f"{panel} has no finite coordinate pairs.")
+    return numeric
 
 
 def plot_domains(ax, retained: pd.DataFrame, config: dict) -> None:
-    if not {"display_x_um", "display_y_um", "final_domain"}.issubset(retained.columns):
-        placeholder(ax, "Final spatial domains", "final-domain coordinates unavailable")
-        return
+    _require_columns(
+        retained,
+        {"display_x_um", "display_y_um", "final_domain"},
+        "Final spatial-domain panel",
+    )
+    retained = _finite_coordinates(retained, "Final spatial-domain panel")
+    if retained["final_domain"].isna().any():
+        raise ValueError("Final spatial-domain panel has missing final_domain values.")
+    observed_domains = set(retained["final_domain"].dropna().astype(str))
+    unknown_domains = sorted(observed_domains.difference(DOMAIN_ORDER))
+    if unknown_domains:
+        raise ValueError(f"Final spatial-domain panel has unknown domains: {unknown_domains}.")
     for domain in DOMAIN_ORDER:
         selected = retained["final_domain"].astype(str).eq(domain)
         sub = retained.loc[selected].dropna(subset=["display_x_um", "display_y_um"])
@@ -44,29 +90,25 @@ def plot_single_roi(
     """Render one coordinate ROI without mask-based segmentation."""
 
     if roi is None or roi.empty:
-        placeholder(ax, f"ROI {domain}", "ROI coordinates unavailable")
-        return
+        raise FileNotFoundError(f"ROI table has no data for final domain {domain}.")
     required = {"display_x_um", "display_y_um", "final_celltype_code"}
-    if not required.issubset(retained.columns):
-        placeholder(ax, f"ROI {domain}", "cell coordinates unavailable")
-        return
+    _require_columns(retained, required, f"ROI {domain} panel")
+    retained = _finite_coordinates(retained, f"ROI {domain} panel")
+    _require_columns(roi, {"final_domain", "center_x_um", "center_y_um"}, f"ROI {domain} panel")
     row = roi.loc[roi["final_domain"].astype(str).eq(domain)]
     if row.empty:
-        placeholder(ax, f"ROI {domain}", "ROI unavailable")
-        return
+        raise FileNotFoundError(f"ROI table has no row for final domain {domain}.")
     item = row.iloc[0]
-    try:
-        center_x = float(item["center_x_um"])
-        center_y = float(item["center_y_um"])
-    except (KeyError, TypeError, ValueError):
-        placeholder(ax, f"ROI {domain}", "ROI center unavailable")
-        return
-    width = float(item.get("roi_width_um", config["roi_side_um"]))
-    height = float(item.get("roi_height_um", config["roi_side_um"]))
-    xmin = float(item.get("xmin_um", center_x - width / 2))
-    xmax = float(item.get("xmax_um", center_x + width / 2))
-    ymin = float(item.get("ymin_um", center_y - height / 2))
-    ymax = float(item.get("ymax_um", center_y + height / 2))
+    center_x = _finite_float(item["center_x_um"], f"ROI {domain} center_x_um")
+    center_y = _finite_float(item["center_y_um"], f"ROI {domain} center_y_um")
+    width = _positive_float(item.get("roi_width_um", config["roi_side_um"]), f"ROI {domain} width")
+    height = _positive_float(item.get("roi_height_um", config["roi_side_um"]), f"ROI {domain} height")
+    xmin = _finite_float(item.get("xmin_um", center_x - width / 2), f"ROI {domain} xmin_um")
+    xmax = _finite_float(item.get("xmax_um", center_x + width / 2), f"ROI {domain} xmax_um")
+    ymin = _finite_float(item.get("ymin_um", center_y - height / 2), f"ROI {domain} ymin_um")
+    ymax = _finite_float(item.get("ymax_um", center_y + height / 2), f"ROI {domain} ymax_um")
+    if not xmax > xmin or not ymax > ymin:
+        raise ValueError(f"ROI {domain} bounds must have positive width and height.")
     inside = retained[
         retained["display_x_um"].between(xmin, xmax)
         & retained["display_y_um"].between(ymin, ymax)
