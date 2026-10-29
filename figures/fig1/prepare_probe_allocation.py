@@ -1,8 +1,7 @@
 """Validate the workbook-backed Fig. 1F allocation inputs.
 
-The release workbook already contains the maximum-over-34-cell reference
-values.  This read-only validator replaces the old CSV/JSON preparation step;
-it does not create a second input copy.
+The workbook contains maximum-over-34-cell reference values. This validator
+checks them without creating another input copy.
 """
 
 from __future__ import annotations

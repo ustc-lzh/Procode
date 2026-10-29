@@ -44,8 +44,7 @@ def recompute(regional_counts, workbook, output_dir):
     result['baseline_ratio'] = result.gene.map(baseline.gene_gapdh_total_ratio)
     result['baseline_false_ratio'] = result.gene.map(baseline.false_ratio)
     result['x_ratio'] = result.gene_gapdh_total_ratio / result.baseline_ratio
-    # Preserve the historical source column explicitly, and separate its sign
-    # from the current E display rather than silently rewriting archived input.
+    # Keep the source column and its sign convention separate from the E display.
     result['y_log2'] = -np.log2((result.false_ratio + 1e-12) / (result.baseline_false_ratio + 1e-12))
     result['y_display'] = np.log2(result.false_ratio / result.baseline_false_ratio)
     for name in ('gene_total_spots', 'gapdh_total_spots', 'n_selected_cells', 'gene_gapdh_total_ratio',

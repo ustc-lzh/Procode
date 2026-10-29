@@ -93,8 +93,7 @@ def export(base_dir, output_dir, workbook):
             retained_genes = np.array([g not in EXCLUDED_QC_GENES for g in genes])
             totals = np.asarray(counts[:, retained_genes].sum(axis=1)).ravel()
             keep = (totals > 1) & (totals < 100) & (area > 1000) & (area < 20000)
-            # Audit this known input layout, rather than silently accepting a
-            # future H5AD with an attached molecule-coordinate cache.
+            # Validate the expected H5AD payload before copying.
             if set(original['obsm']) != {'spatial'} or set(original['uns']) != {'fu_region_colors'} or len(original['layers']):
                 raise ValueError('Unexpected H5AD payload; inspect its coordinate/uns contents before copying')
             original_obs_fields = set(original['obs'])
@@ -118,7 +117,7 @@ def export(base_dir, output_dir, workbook):
                                        'n_cells': int(mask.sum()), 'total_counts': int(gene_totals[j]),
                                        'n_positive_cells': int(positives[j]),
                                        'mean_counts_per_cell': float(gene_totals[j] / mask.sum())})
-        # The two archived figure source tables must be supported by this X.
+        # The two Fig. 1 source tables must be supported by this X.
         for row in line[line.probes == probes].itertuples(index=False):
             main = definitions[(definitions.gene == row.gene) & (definitions.region_set == 'allen_top3_main_expression')].region
             negative = definitions[(definitions.gene == row.gene) & (definitions.region_set == 'reference_negative')].region

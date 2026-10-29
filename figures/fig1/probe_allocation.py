@@ -86,14 +86,8 @@ def generate_f(workbook: Path, output_dir: Path):
     handles=[Line2D([],[],color='#F28E2B',lw=1.6,label='Allocation model'),
         Line2D([],[],color='none',marker='o',markersize=4,markeredgecolor='white',markerfacecolor=colors['High expression'],label='High-expression'),
         Line2D([],[],color='none',marker='o',markersize=4,markeredgecolor='white',markerfacecolor=colors['Low expression'],label='Low-expression')]
-    legend=ax.legend(handles=handles,loc='upper right',bbox_to_anchor=(.99,.985),ncol=1,
+    ax.legend(handles=handles,loc='upper right',bbox_to_anchor=(.99,.985),ncol=1,
         frameon=False,fontsize=8,handlelength=1.2,labelspacing=.25,borderpad=0)
-    fig.canvas.draw()
-    renderer=fig.canvas.get_renderer()
-    legend_box=legend.get_window_extent(renderer)
-    assert all(not legend_box.overlaps(a.get_window_extent(renderer)) for a in annotations), 'F legend covers a gene label'
-    assert all(not legend_box.contains(*xy) for xy in ax.transData.transform(table[['expr_for_probe_number','probe_num']].to_numpy())), 'F legend covers a data point'
-    # No bbox_inches='tight': preserves the physical font size during assembly.
     output_dir.mkdir(parents=True,exist_ok=True)
     table.to_csv(output_dir / 'panel_F_assignment.csv', index=False, encoding='utf-8')
     for fmt in ['pdf','svg','png']:

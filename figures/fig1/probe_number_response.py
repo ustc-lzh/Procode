@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Generate the quantitative Fig. 1 panels B, C and E from the XLSX workbook.
+"""Generate quantitative Fig. 1 panels B, C and E from the XLSX workbook.
 
-The pie-marker E panel retains the archived 44-row regional result, including
-the displayed ``log2(false_ratio / baseline_false_ratio)`` sign convention.
+The pie-marker E panel displays the 44-row regional result with the
+``log2(false_ratio / baseline_false_ratio)`` sign convention.
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -46,10 +45,47 @@ MM_PER_INCH = 25.4
 BULK_COLOR = "#4C78A8"
 SCRNA_COLOR = "#F28E2B"
 
-# Fig. 1E uses categorical pie symbols rather than the old size-coded
-# scatter markers.  Every marker has one fixed 6 pt diameter; the probe
-# condition is encoded only by the filled area fraction.
+# Fig. 1E uses categorical pie symbols. Every marker has one fixed 6 pt
+# diameter; the probe condition is encoded by the filled area fraction.
 E_PROBES = PROBES
+
+# Fixed offsets keep labels deterministic while retaining the readable panel
+# arrangement.
+E_LABEL_OFFSETS = {
+    ("Gsg1l", 4): (6, 0, "left", "center", False),
+    ("Bdnf", 4): (-6, 0, "right", "center", True),
+    ("Dkk3", 4): (-6, 0, "right", "center", True),
+    ("Mapk4", 4): (-6, 0, "right", "center", True),
+    ("Slc17a6", 4): (0, -6, "center", "top", True),
+    ("Cpne4", 4): (6, 0, "left", "center", False),
+    ("Gad1", 4): (6, 0, "left", "center", False),
+    ("Opn3", 4): (6, 0, "left", "center", False),
+    ("Fibcd1", 4): (6, 0, "left", "center", False),
+    ("Arhgap25", 4): (6, 0, "left", "center", False),
+    ("Wfs1", 4): (6, 0, "left", "center", True),
+    ("Gsg1l", 8): (0, -6, "center", "top", True),
+    ("Bdnf", 8): (-6, 0, "right", "center", True),
+    ("Dkk3", 8): (6, 0, "left", "center", False),
+    ("Mapk4", 8): (-6, 0, "right", "center", True),
+    ("Slc17a6", 8): (-6, 0, "right", "center", True),
+    ("Cpne4", 8): (0, 6, "center", "bottom", True),
+    ("Gad1", 8): (6, 0, "left", "center", True),
+    ("Opn3", 8): (6, 0, "left", "center", False),
+    ("Fibcd1", 8): (6, 0, "left", "center", False),
+    ("Arhgap25", 8): (6, 0, "left", "center", False),
+    ("Wfs1", 8): (-6, -3.9, "right", "top", True),
+    ("Gsg1l", 12): (6, 0, "left", "center", True),
+    ("Bdnf", 12): (6, 0, "left", "center", True),
+    ("Dkk3", 12): (0, -6, "center", "top", True),
+    ("Mapk4", 12): (0, 6, "center", "bottom", True),
+    ("Slc17a6", 12): (6, 3.9, "left", "bottom", True),
+    ("Cpne4", 12): (-6, 0, "right", "center", True),
+    ("Gad1", 12): (6, 0, "left", "center", False),
+    ("Opn3", 12): (6, 0, "left", "center", False),
+    ("Fibcd1", 12): (6, 0, "left", "center", False),
+    ("Arhgap25", 12): (6, 0, "left", "center", False),
+    ("Wfs1", 12): (6, 0, "left", "center", False),
+}
 
 
 def _set_style() -> None:
@@ -92,7 +128,6 @@ def _save_panel(fig: plt.Figure, panel_dir: Path, stem: str) -> dict[str, Path]:
         "svg": panel_dir / f"{stem}.svg",
         "png": panel_dir / f"{stem}.png",
     }
-    # No bbox_inches='tight': the PDF page must remain the requested panel size.
     fig.savefig(paths["pdf"], transparent=True)
     fig.savefig(paths["svg"], transparent=True)
     fig.savefig(paths["png"], dpi=600, facecolor="white")
@@ -262,7 +297,6 @@ def _plot_panel_c(line: pd.DataFrame, panel_dir: Path, export_dir: Path) -> dict
     ax.set_ylim(0.5, 20.5)
     ax.set_xticks([2, 4, 8, 12])
     ax.set_xlabel("Probe number", fontsize=10)
-    # Keep the requested complete meaning but avoid the old Top3 wording.
     ax.set_ylabel("Normalized signal gain\n(fold vs. 2 probes)", fontsize=10)
     ax.spines[["top", "right"]].set_visible(False)
     ax.tick_params(length=2.2, width=0.7, pad=1.5, labelsize=8)
@@ -373,7 +407,6 @@ def _add_e_legends(ax):
     """Add gene-colour legends and the categorical probe-number key."""
 
     gene_font = FontProperties(family="Arial", style="italic", size=8)
-    legends = []
     for group, anchor in (("High", (0.58, 0.98)), ("Low", (0.81, 0.98))):
         handles = [
             Line2D(
@@ -402,9 +435,8 @@ def _add_e_legends(ax):
             frameon=False,
         )
         ax.add_artist(legend)
-        legends.append(legend)
 
-    probe_legend = ax.legend(
+    ax.legend(
         handles=[_ProbeLegendKey(probe) for probe in E_PROBES],
         labels=[str(probe) for probe in E_PROBES],
         handler_map={_ProbeLegendKey: _ProbeLegendHandler()},
@@ -420,8 +452,6 @@ def _add_e_legends(ax):
         columnspacing=0.75,
         frameon=False,
     )
-    legends.append(probe_legend)
-    return legends
 
 
 def _plot_panel_e(quadrant: pd.DataFrame, panel_dir: Path, export_dir: Path) -> dict[str, Any]:
@@ -481,8 +511,6 @@ def _plot_panel_e(quadrant: pd.DataFrame, panel_dir: Path, export_dir: Path) -> 
     data["baseline_drawn_once"] = data["probes"].eq(2)
     _write_csv(data, export_dir / "panel_E_points.csv")
 
-    # The E source is an independent scientific panel (185 x 135 mm), matching
-    # the selected pie rendering while retaining the main-figure font sizes.
     fig, ax = _fig_with_axes(
         185,
         135,
@@ -501,27 +529,33 @@ def _plot_panel_e(quadrant: pd.DataFrame, panel_dir: Path, export_dir: Path) -> 
             str(row.gene_color),
             zorder=4,
         )
-    # The 11 baseline rows are intentionally represented once by one shared
-    # gray quarter-pie at (1, 0), not by 11 overplotted symbols.
+    # Draw the 11 baseline rows once as a shared gray quarter-pie at (1, 0).
     _draw_e_pie(ax, 1.0, 0.0, 2, E_BASELINE_COLOR, zorder=4.1)
 
-    annotations = []
     for row in points.itertuples(index=False):
+        dx, dy, ha, va, short_leader = E_LABEL_OFFSETS[(str(row.gene), int(row.probes))]
         label_color = tuple(0.80 * np.asarray(mpl.colors.to_rgb(row.gene_color)))
-        annotations.append(
-            ax.annotate(
-                str(row.gene),
-                xy=(float(row.x_ratio), float(row.y_display)),
-                xytext=(5, 0),
-                textcoords="offset points",
-                ha="left",
-                va="center",
-                fontsize=6,
-                fontstyle="italic",
-                color=label_color,
-                zorder=6,
-            )
-        )
+        annotation = {
+            "text": str(row.gene),
+            "xy": (float(row.x_ratio), float(row.y_display)),
+            "xytext": (dx, dy),
+            "textcoords": "offset points",
+            "ha": ha,
+            "va": va,
+            "fontsize": 6,
+            "fontstyle": "italic",
+            "color": label_color,
+            "zorder": 6,
+        }
+        if short_leader:
+            annotation["arrowprops"] = {
+                "arrowstyle": "-",
+                "color": "#666666",
+                "lw": 0.35,
+                "shrinkA": 1,
+                "shrinkB": E_MARKER_DIAMETER_PT / 2 + 0.3,
+            }
+        ax.annotate(**annotation)
 
     ax.axvline(1, color="#BBBBBB", linestyle=(0, (3, 3)), lw=0.7, zorder=0.4)
     ax.axhline(0, color="#BBBBBB", linestyle=(0, (3, 3)), lw=0.7, zorder=0.4)
@@ -534,205 +568,12 @@ def _plot_panel_e(quadrant: pd.DataFrame, panel_dir: Path, export_dir: Path) -> 
     ax.spines[["top", "right"]].set_visible(False)
     ax.tick_params(length=2.8, width=0.7, pad=2, labelsize=8)
 
-    legends = _add_e_legends(ax)
-    label_positions = place_e_labels(fig, ax, annotations, points, legends)
-    _write_csv(pd.DataFrame(label_positions), export_dir / "panel_E_label_positions.csv")
-
-    # Keep a compact machine-readable record of the actual input and style
-    # used by this independent panel; it is generated output, not package data.
-    fig.canvas.draw()
-    metadata = {
-        "input": "fig1_data.xlsx#fig1_E_values",
-        "brain_region_definition": "brain_region_v2",
-        "input_rows": int(len(data)),
-        "baseline_rows": int((data["probes"] == 2).sum()),
-        "drawn_markers": 34,
-        "nonbaseline_labels": 33,
-        "gene_trajectories": 0,
-        "y_definition": "log2(false_ratio / baseline_false_ratio)",
-        "x_definition": "(gene_total_spots / gapdh_total_spots) / baseline_ratio",
-        "marker_diameter_pt": E_MARKER_DIAMETER_PT,
-        "marker_outline_width_pt": E_MARKER_OUTLINE_WIDTH_PT,
-        "fill_fractions": {str(probe): E_FILL_FRACTIONS[probe] for probe in E_PROBES},
-        "font_family": ax.xaxis.label.get_fontproperties().get_name(),
-        "font_sizes_pt": {
-            "axis": 10,
-            "ticks": 8,
-            "legend_title": 9,
-            "legend_gene": 8,
-            "point_gene": 6,
-        },
-    }
-    (export_dir / "panel_E_metadata.json").write_text(
-        json.dumps(metadata, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    _add_e_legends(ax)
     paths = _save_panel(fig, panel_dir, "panel_E")
     return {
         "paths": paths,
         "table": export_dir / "panel_E_points.csv",
-        "metadata": export_dir / "panel_E_metadata.json",
     }
-
-
-def place_e_labels(fig, ax, annotations, points, legends=()):
-    """Place 6 pt italic gene labels with deterministic short leaders.
-
-    Candidate positions are measured in display space after the axes and
-    legends exist.  Data points never move, no gene-to-gene trajectories are
-    drawn, and leaders are added only for crowded or displaced labels.
-    """
-
-    from matplotlib.transforms import Bbox
-
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
-    scale = fig.dpi / 72
-    point_xy = ax.transData.transform(points[["x_ratio", "y_display"]].to_numpy(dtype=float))
-    radii = np.full(
-        len(points),
-        E_MARKER_DIAMETER_PT * 0.5 * scale + 1,
-        dtype=float,
-    )
-    point_boxes = [
-        Bbox.from_extents(x - radius, y - radius, x + radius, y + radius)
-        for (x, y), radius in zip(point_xy, radii)
-    ]
-    legend_boxes = [legend.get_window_extent(renderer).padded(2 * scale) for legend in legends]
-    for legend_box in legend_boxes:
-        if any(legend_box.overlaps(point_box) for point_box in point_boxes):
-            raise ValueError("Inset legend covers a Fig. 1E data point")
-
-    candidates = []
-    allowed = Bbox.from_extents(ax.bbox.x0 + 1, ax.bbox.y0 + 1, ax.bbox.x1 - 1, ax.bbox.y1 - 1)
-    for index, annotation in enumerate(annotations):
-        bbox = annotation.get_window_extent(renderer)
-        text_width, text_height = bbox.width, max(bbox.height, 6.8 * scale)
-        x, y = point_xy[index]
-        options = []
-        for distance in (4, 6, 8, 10, 13, 16):
-            for ha, va, dx, dy in (
-                ("left", "center", distance, 0),
-                ("right", "center", -distance, 0),
-                ("center", "bottom", 0, distance),
-                ("center", "top", 0, -distance),
-                ("left", "bottom", distance, distance * 0.65),
-                ("right", "bottom", -distance, distance * 0.65),
-                ("left", "top", distance, -distance * 0.65),
-                ("right", "top", -distance, -distance * 0.65),
-            ):
-                xx, yy = x + dx * scale, y + dy * scale
-                left = xx if ha == "left" else xx - text_width if ha == "right" else xx - text_width / 2
-                bottom = yy if va == "bottom" else yy - text_height if va == "top" else yy - text_height / 2
-                pad = 1.2 * scale
-                box = Bbox.from_bounds(
-                    left - pad,
-                    bottom - pad,
-                    text_width + 2 * pad,
-                    text_height + 2 * pad,
-                )
-                if (
-                    box.x0 < allowed.x0
-                    or box.x1 > allowed.x1
-                    or box.y0 < allowed.y0
-                    or box.y1 > allowed.y1
-                ):
-                    continue
-                if any(box.overlaps(legend_box) for legend_box in legend_boxes):
-                    continue
-                point_overlap = sum(intersection_area(box, other) for other in point_boxes)
-                options.append((box, (dx, dy), ha, va, point_overlap * 8 + distance * 0.25))
-        if not options:
-            raise ValueError(f"No collision-free local label position for {points.iloc[index].gene}")
-        candidates.append(options)
-
-    # Optimize complete configurations so an early label cannot permanently
-    # block a later one. The seeded search is deterministic across CLI runs.
-    rng = np.random.default_rng(1984)
-    best = None
-    best_score = float("inf")
-    for _ in range(45):
-        choice = [int(rng.integers(min(8, len(options)))) for options in candidates]
-        for _ in range(8):
-            for index in rng.permutation(len(choice)):
-                costs = []
-                for option in candidates[index]:
-                    cost = option[4] + sum(
-                        intersection_area(option[0], candidates[other][choice[other]][0]) * 25
-                        for other in range(len(choice))
-                        if other != index
-                    )
-                    costs.append(cost)
-                choice[index] = int(np.argmin(costs))
-        score = sum(candidates[index][choice[index]][4] for index in range(len(choice)))
-        score += sum(
-            intersection_area(candidates[index][choice[index]][0], candidates[other][choice[other]][0]) * 25
-            for index in range(len(choice))
-            for other in range(index)
-        )
-        if score < best_score:
-            best_score = score
-            best = choice.copy()
-
-    for index, annotation in enumerate(annotations):
-        _, offset, ha, va, _ = candidates[index][best[index]]
-        annotation.set_position(offset)
-        annotation.set_ha(ha)
-        annotation.set_va(va)
-    fig.canvas.draw()
-    for annotation in annotations:
-        if any(annotation.get_window_extent(renderer).overlaps(box) for box in legend_boxes):
-            raise ValueError("A Fig. 1E gene label overlaps a legend")
-
-    records = []
-    for index, annotation in enumerate(annotations):
-        row = points.iloc[index]
-        box = annotation.get_window_extent(renderer)
-        px, py = point_xy[index]
-        tx = float(np.clip(px, box.x0, box.x1))
-        ty = float(np.clip(py, box.y0, box.y1))
-        gap = float(np.hypot(tx - px, ty - py) / scale)
-        nearest_other = min(
-            np.linalg.norm(point_xy[index] - point_xy[other]) / scale
-            for other in range(len(point_xy))
-            if other != index
-        )
-        leader = nearest_other < 16 or gap > 8
-        if leader:
-            endpoint = ax.transData.inverted().transform((tx, ty))
-            ax.annotate(
-                "",
-                xy=(float(row.x_ratio), float(row.y_display)),
-                xytext=endpoint,
-                arrowprops={
-                    "arrowstyle": "-",
-                    "color": "#666666",
-                    "lw": 0.35,
-                    "shrinkA": 1,
-                    "shrinkB": E_MARKER_DIAMETER_PT / 2 + 0.3,
-                },
-                zorder=2.8,
-            )
-        records.append(
-            {
-                "gene": str(row.gene),
-                "probes": int(row.probes),
-                "point_x_ratio": float(row.x_ratio),
-                "point_y_display": float(row.y_display),
-                "point_y_log2": float(row.y_log2),
-                "label_dx_pt": float(annotation.get_position()[0]),
-                "label_dy_pt": float(annotation.get_position()[1]),
-                "ha": annotation.get_ha(),
-                "va": annotation.get_va(),
-                "label_gap_pt": gap,
-                "short_leader": bool(leader),
-            }
-        )
-    return records
-
-
-def intersection_area(a, b):
-    return max(0, min(a.x1, b.x1) - max(a.x0, b.x0)) * max(0, min(a.y1, b.y1) - max(a.y0, b.y0))
 
 
 def generate_all(workbook: Path, output_dir: Path) -> dict[str, Any]:
