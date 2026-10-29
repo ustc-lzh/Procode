@@ -20,11 +20,6 @@ from data_io import (
 )
 
 
-# Compatibility wrapper for callers of the archived detection_metrics module.
-def load_dataset(path: Path, is_bad: bool) -> dict[str, Any]:
-    return load_h5ad_dataset(path, is_bad=is_bad)
-
-
 def region_sum_count(
     dataset: dict[str, Any], gene_index: int, region_key: str
 ) -> tuple[dict[str, float], dict[str, int]]:

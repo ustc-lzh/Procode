@@ -49,25 +49,6 @@ NEGATIVE_COLOR = "#18A6D1"
 CONTEXT_COLOR = "#E5E5E5"
 
 
-def load_h5ad_minimal(path: Path, is_bad: bool | None = None) -> dict[str, Any]:
-    """Compatibility name for the archived loader, with current full fields."""
-
-    if is_bad is None:
-        is_bad = "bad" in Path(path).name.lower()
-    return load_h5ad_dataset(Path(path), is_bad=is_bad)
-
-
-def load_allen_matrix(frame: pd.DataFrame) -> pd.DataFrame:
-    """Compatibility name for the archived Allen loader.
-
-    The current input is a workbook frame rather than an untracked CSV path.
-    """
-
-    if not isinstance(frame, pd.DataFrame):
-        raise TypeError("Current regional validation expects the allen_reference workbook sheet")
-    return load_allen_reference(frame)
-
-
 def region_means(dataset: dict[str, Any], genes: list[str]) -> pd.DataFrame:
     indices = {str(gene): index for index, gene in enumerate(dataset["genes"])}
     missing = [gene for gene in genes if gene not in indices]
@@ -85,7 +66,7 @@ def region_means(dataset: dict[str, Any], genes: list[str]) -> pd.DataFrame:
 def correlations(
     control: dict[str, Any], optimized: dict[str, Any], allen: pd.DataFrame
 ) -> pd.DataFrame:
-    """Calculate the 91 gene-level Pearson pairs in the archived order."""
+    """Calculate the 91 gene-level Pearson pairs in deterministic gene order."""
 
     common = sorted(
         set(map(str, allen.index))
@@ -111,9 +92,6 @@ def correlations(
     return pd.DataFrame(rows).sort_values("gene").reset_index(drop=True)
 
 
-calculate_correlations = correlations
-
-
 def _region_display_mask(correlations_frame: pd.DataFrame) -> tuple[np.ndarray, float, float]:
     values = correlations_frame[["control_pearson_r", "sa_optimized_pearson_r"]].to_numpy(dtype=float)
     lower, upper = np.percentile(values.ravel(), [5, 95])
@@ -131,14 +109,14 @@ def p_label(p: float) -> str:
     return "ns"
 
 
-def render_regional_figure(
+def render_regional_panels(
     control: dict[str, Any],
     optimized: dict[str, Any],
     allen: pd.DataFrame,
     correlations_frame: pd.DataFrame,
     output_dir: Path,
 ) -> dict[str, Any]:
-    """Render standalone SFig. 3 maps and the correlation panel."""
+    """Render independent source-data-driven SFig. 3 panel files."""
 
     try:
         import matplotlib as mpl
@@ -160,7 +138,29 @@ def render_regional_figure(
         }
     )
     output_dir = Path(output_dir)
-    fig = plt.figure(figsize=(180 / 25.4, 6.15), facecolor="white")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    saved_files: list[str] = []
+    panel_files: dict[str, list[str]] = {}
+
+    def save_figure(fig: Any, stem: str) -> list[str]:
+        filenames: list[str] = []
+        for suffix, kwargs in (
+            (".pdf", {"dpi": 600}),
+            (".svg", {"dpi": 600}),
+            ("_600dpi.png", {"dpi": 600}),
+        ):
+            filename = f"{stem}{suffix}"
+            fig.savefig(
+                output_dir / filename,
+                facecolor="white",
+                bbox_inches="tight",
+                pad_inches=0.04,
+                **kwargs,
+            )
+            filenames.append(filename)
+            saved_files.append(filename)
+        plt.close(fig)
+        return filenames
 
     def style_axis(ax: Any) -> None:
         ax.set_aspect("equal", adjustable="box")
@@ -210,11 +210,15 @@ def render_regional_figure(
         ax.set_title(title, fontsize=7.2, pad=1.5)
         scale_bar(ax, dataset["spatial"])
 
-    ax_a1 = fig.add_axes([0.065, 0.705, 0.405, 0.245])
-    ax_a2 = fig.add_axes([0.505, 0.705, 0.405, 0.245])
-    plot_map(ax_a1, control, "Control codebook")
-    plot_map(ax_a2, optimized, "SA-optimized codebook")
-    fig.text(0.018, 0.972, "A", fontsize=10, fontweight="bold", va="top")
+    # Brain-region maps are exported as their own two-map output.
+    fig_a, axes_a = plt.subplots(1, 2, figsize=(7.5, 3.8), squeeze=False)
+    axes_a = axes_a.ravel()
+    for ax, dataset, title in zip(
+        axes_a,
+        (control, optimized),
+        ("Control codebook", "SA-optimized codebook"),
+    ):
+        plot_map(ax, dataset, title)
     handles = [
         Line2D(
             [0],
@@ -228,13 +232,13 @@ def render_regional_figure(
         )
         for region in DISPLAY_REGIONS
     ]
-    fig.legend(
+    fig_a.legend(
         handles=handles,
         title="Brain region",
         ncol=7,
         frameon=False,
-        loc="upper center",
-        bbox_to_anchor=(0.50, 0.700),
+        loc="lower center",
+        bbox_to_anchor=(0.50, 0.01),
         fontsize=5.9,
         title_fontsize=6.4,
         handletextpad=0.25,
@@ -242,6 +246,8 @@ def render_regional_figure(
         borderaxespad=0,
         labelspacing=0.38,
     )
+    fig_a.subplots_adjust(left=0.02, right=0.98, bottom=0.19, top=0.95, wspace=0.04)
+    panel_files["brain_region_maps"] = save_figure(fig_a, "panel_A_brain_region_maps")
 
     def plot_gene_regions(
         ax: Any, dataset: dict[str, Any], main_regions: list[str], negative_region: str
@@ -269,38 +275,26 @@ def render_regional_figure(
         style_axis(ax)
         scale_bar(ax, dataset["spatial"])
 
-    b_left, b_width, b_gap = 0.105, 0.255, 0.020
-    b_bottoms = [0.365, 0.120]
-    for row, gene in enumerate(["Wfs1", "Drd1"]):
-        if gene not in allen.index:
-            continue
-        top3 = allen.loc[gene].sort_values(ascending=False).head(3).index.tolist()
-        lowest = str(allen.loc[gene].idxmin())
-        for col, dataset in enumerate((control, optimized)):
-            ax = fig.add_axes(
-                [b_left + col * (b_width + b_gap), b_bottoms[row], b_width, 0.190]
-            )
-            plot_gene_regions(ax, dataset, top3, lowest)
-        fig.text(
-            0.058,
-            b_bottoms[row] + 0.095,
-            gene,
-            fontsize=8.2,
-            fontstyle="italic",
-            va="center",
-            ha="center",
+    # Expression-region maps use the Wfs1/Drd1 top-three and lowest-one definitions.
+    expression_genes = ("Wfs1", "Drd1")
+    missing_expression = [gene for gene in expression_genes if gene not in allen.index]
+    if missing_expression:
+        raise ValueError(
+            f"Allen reference is missing expression-map genes: {missing_expression}"
         )
-    fig.text(0.018, 0.620, "B", fontsize=10, fontweight="bold", va="top")
-    fig.text(b_left + b_width / 2, 0.590, "Control codebook", fontsize=7.2, ha="center", va="bottom")
-    fig.text(
-        b_left + b_width + b_gap + b_width / 2,
-        0.590,
-        "SA-optimized codebook",
-        fontsize=7.2,
-        ha="center",
-        va="bottom",
-    )
-    fig.legend(
+    fig_b, axes_b = plt.subplots(2, 2, figsize=(7.5, 6.4), squeeze=False)
+    for row, gene in enumerate(expression_genes):
+        for col, (dataset, condition) in enumerate(
+            ((control, "Control codebook"), (optimized, "SA-optimized codebook"))
+        ):
+            ax = axes_b[row, col]
+            top3 = allen.loc[gene].sort_values(ascending=False).head(3).index.tolist()
+            lowest = str(allen.loc[gene].idxmin())
+            plot_gene_regions(ax, dataset, top3, lowest)
+            ax.set_title(f"{gene} — {condition}", fontsize=7.2, pad=1.5)
+    axes_b[0, 0].set_ylabel("Wfs1", fontstyle="italic", labelpad=8)
+    axes_b[1, 0].set_ylabel("Drd1", fontstyle="italic", labelpad=8)
+    fig_b.legend(
         handles=[
             Line2D(
                 [0],
@@ -336,16 +330,22 @@ def render_regional_figure(
         ],
         ncol=3,
         frameon=False,
-        loc="lower left",
-        bbox_to_anchor=(0.090, 0.045),
+        loc="lower center",
+        bbox_to_anchor=(0.50, 0.01),
         fontsize=5.7,
         handletextpad=0.25,
         columnspacing=0.65,
         borderaxespad=0,
     )
+    fig_b.subplots_adjust(left=0.08, right=0.98, bottom=0.14, top=0.95, wspace=0.04, hspace=0.10)
+    panel_files["expression_maps"] = save_figure(fig_b, "panel_B_expression_maps")
 
-    ax_c = fig.add_axes([0.715, 0.135, 0.255, 0.420])
-    values = correlations_frame[["control_pearson_r", "sa_optimized_pearson_r"]].to_numpy(dtype=float)
+    # The paired correlation plot uses every gene pair for the Wilcoxon test;
+    # the percentile mask only controls the points shown in the display.
+    fig_c, ax_c = plt.subplots(figsize=(3.8, 4.8))
+    values = correlations_frame[
+        ["control_pearson_r", "sa_optimized_pearson_r"]
+    ].to_numpy(dtype=float)
     display_mask, low, high = _region_display_mask(correlations_frame)
     control_display, optimized_display = values[display_mask, 0], values[display_mask, 1]
     box = ax_c.boxplot(
@@ -414,15 +414,13 @@ def render_regional_figure(
         va="bottom",
         fontsize=5.5,
     )
-    fig.text(0.680, 0.620, "C", fontsize=10, fontweight="bold", va="top")
+    fig_c.tight_layout()
+    panel_files["paired_correlations"] = save_figure(fig_c, "panel_C_paired_correlations")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for suffix, kwargs in ((".pdf", {"dpi": 600}), (".svg", {"dpi": 600}), ("_600dpi.png", {"dpi": 600})):
-        fig.savefig(output_dir / f"regional_validation{suffix}", facecolor="white", bbox_inches=None, **kwargs)
-    plt.close(fig)
     return {
         "status": "rendered",
-        "files": ["regional_validation.pdf", "regional_validation.svg", "regional_validation_600dpi.png"],
+        "files": saved_files,
+        "panels": panel_files,
     }
 
 
@@ -527,15 +525,10 @@ def run_regional(
         "cap_mean": cap_summary,
     }
     _write_json(out / "sfig3_correlation_statistics.json", regional_stats)
-    render_status = render_regional_figure(control, optimized, allen, correlations_frame, out)
+    render_status = render_regional_panels(control, optimized, allen, correlations_frame, out)
     regional_stats["figure"] = render_status
     _write_json(out / "sfig3_correlation_statistics.json", regional_stats)
     return regional_stats
-
-
-# Archived name used by the 20261019 module; the current stage writes the
-# standalone files through render_regional_figure and keeps this alias narrow.
-build_figure = render_regional_figure
 
 
 def main(argv: list[str] | None = None) -> None:

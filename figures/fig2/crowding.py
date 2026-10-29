@@ -24,9 +24,9 @@ def evaluate(
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Evaluate the original abundance-weighted bit-crowding definition.
 
-    ``common`` is explicit to retain the 20261019 function contract.  The
-    current workbook validates that the target expression and both codebooks
-    contain the same 96 unique genes before this function is called.
+    ``common`` is explicit because the workbook validates that the target
+    expression and both codebooks contain the same 96 unique genes before
+    this function is called.
     """
 
     summary: list[dict[str, Any]] = []
@@ -156,13 +156,6 @@ def verify_matrix(
             rtol=1e-12,
             atol=1e-12,
         )
-
-
-# Current-name aliases make the stage API self-describing while preserving the
-# small function names used by the archived 20261019 module.
-evaluate_crowding = evaluate
-summarize_crowding = summarize
-verify_crowding = verify_matrix
 
 
 def run_crowding(inputs: dict[str, Any], output_dir: Path) -> dict[str, Any]:
